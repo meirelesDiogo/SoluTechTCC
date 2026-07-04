@@ -5,6 +5,7 @@
  * Formulário de solicitação de orçamento (pode vir vinculado a um diagnóstico).
  */
 require_once __DIR__ . '/includes/conexao.php';
+require_once __DIR__ . '/services/EmailService.php';
 $paginaAtual = 'orcamento';
 
 /**
@@ -20,6 +21,7 @@ function buscarClientePorDiagnostico(PDO $pdo, int $diagnosticoId): ?array
         WHERE d.id = ?
     ');
   $stmt->execute([$diagnosticoId]);
+  
   $row = $stmt->fetch();
   return $row ?: null;
 }

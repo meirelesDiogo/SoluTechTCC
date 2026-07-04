@@ -12,49 +12,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
 
-        $resend = require __DIR__ . '/config/resend.php';
+        $mail = require __DIR__ . '/config/mail.php';
 
-        $resend->emails->send([
-            'from' => "SoluTech <{$_ENV['EMAIL_FROM']}>",
+$mail->addAddress($email, $nome);
 
-            'to' => [$email],
+$mail->isHTML(true);
 
-            'subject' => 'Recebemos sua mensagem!',
+$mail->Subject = 'Recebemos sua mensagem!';
 
-            'html' => "
-                <div style='font-family:Arial,sans-serif;max-width:600px;margin:auto;'>
+$mail->Body = "
+<div style='font-family:Arial,sans-serif;max-width:600px;margin:auto;'>
 
-                    <h2 style='color:#f1c40f;'>
-                        Olá, {$nome}!
-                    </h2>
+    <h2 style='color:#f1c40f;'>Olá, {$nome}!</h2>
 
-                    <p>
-                        Recebemos sua mensagem com sucesso.
-                    </p>
+    <p>Recebemos sua mensagem com sucesso.</p>
 
-                    <p>
-                        Nossa equipe irá analisar sua solicitação e responder o mais breve possível.
-                    </p>
+    <p>Nossa equipe da <strong>SoluTech IA</strong> responderá o mais breve possível.</p>
 
-                    <hr>
+    <hr>
 
-                    <h3>Sua mensagem:</h3>
+    <h3>Sua mensagem</h3>
 
-                    <p>
-                        {$mensagem}
-                    </p>
+    <p>{$mensagem}</p>
 
-                    <br>
+    <br>
 
-                    <p>
-                        Atenciosamente,
-                    </p>
+    <p>Atenciosamente,</p>
 
-                    <h3>SoluTech IA</h3>
+    <h3>SoluTech IA</h3>
 
-                </div>
-            "
-        ]);
+</div>";
+
+$mail->send();
 
         $enviado = true;
 
