@@ -13,7 +13,40 @@ $tituloDash = 'Clientes';
 // ---- Ações (criar / editar / excluir) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
+if ($acao === 'enviar_email') {
 
+    $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+
+    if ($id) {
+        $stmt = $pdo->prepare("SELECT nome, email FROM clientes WHERE id = ?");
+        $stmt->execute([$id]);
+        $cliente = $stmt->fetch();
+
+        if ($cliente) {
+            $assunto = $_POST['assunto'] ?? 'Mensagem da SoluTech';
+            $mensagem = $_POST['mensagem'] ?? '';
+
+            $mail = require __DIR__ . '/../config/mail.php';
+
+            $mail->addAddress($cliente['email'], $cliente['nome']);
+            $mail->isHTML(true);
+            $mail->Subject = $assunto;
+
+            $mail->Body = "
+            <div style='font-family:Arial;max-width:600px;margin:auto'>
+                <h2 style='color:#1e90ff;'>Olá {$cliente['nome']}</h2>
+                <p>{$mensagem}</p>
+                <br>
+                <p><b>SoluTech IA</b></p>
+            </div>";
+
+            $mail->send();
+        }
+    }
+
+    header("Location: clientes.php");
+    exit;
+}
     if ($acao === 'salvar') {
         $id       = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT) ?: null;
         $nome     = limpar($_POST['nome']);
@@ -95,15 +128,33 @@ include __DIR__ . '/includes_dash_layout_top.php';
           <td><?= htmlspecialchars($c['telefone']) ?></td>
           <td><?= htmlspecialchars($c['cidade']) ?></td>
           <td>
-            <div class="acoes-tabela">
-              <a href="#" onclick='abrirEdicao(<?= json_encode($c) ?>); return false;'><i class="fa-solid fa-pen"></i></a>
-              <form method="POST" style="display:inline;" onsubmit="return confirmarExclusao(this);">
-                <input type="hidden" name="acao" value="excluir">
-                <input type="hidden" name="id" value="<?= $c['id'] ?>">
-                <button type="submit"><i class="fa-solid fa-trash"></i></button>
-              </form>
-            </div>
-          </td>
+  <div class="acoes-tabela">
+
+    <!-- visualizar -->
+    <a href="#" onclick='abrirEdicao(<?= json_encode($c) ?>); return false;'>
+      <i class="fa-solid fa-eye"></i>
+    </a>
+
+    <!-- editar -->
+    <a href="#" onclick='abrirEdicao(<?= json_encode($c) ?>); return false;'>
+      <i class="fa-solid fa-pen"></i>
+    </a>
+
+    <!-- enviar email -->
+   <a href="#" onclick='abrirEmail(<?= $c["id"] ?>, "<?= htmlspecialchars($c["nome"], ENT_QUOTES) ?>", "<?= htmlspecialchars($c["email"], ENT_QUOTES) ?>")'>
+  <i class="fa-solid fa-paper-plane" style="color:#1e90ff;"></i>
+</a>
+    <!-- deletar -->
+    <form method="POST" style="display:inline;" onsubmit="return confirmarExclusao(this);">
+      <input type="hidden" name="acao" value="excluir">
+      <input type="hidden" name="id" value="<?= $c['id'] ?>">
+      <button type="submit">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </form>
+
+  </div>
+</td>
         </tr>
         <?php endforeach; ?>
         <?php if (!$clientes): ?><tr><td colspan="6">Nenhum cliente encontrado.</td></tr><?php endif; ?>
@@ -154,6 +205,62 @@ include __DIR__ . '/includes_dash_layout_top.php';
     document.getElementById('cliente-segmento').value = c.segmento || '';
     document.getElementById('modal-cliente').classList.add('ativo');
   }
-</script>
+</script><div class="modal-overlay" id="modal-email">
+  <div class="modal-box">
+    <span class="modal-close" data-fechar-modal>&times;</span>
 
+    <h3>Enviar e-mail para <span id="email-nome"></span></h3>
+
+    <form method="POST">
+      <input type="hidden" name="acao" value="enviar_email">
+      <input type="hidden" name="id" id="email-id">
+
+      <div class="form-group">
+        <label>Assunto</label>
+        <input type="text" name="assunto" id="email-assunto" required>
+      </div>
+
+      <div class="form-group">
+        <label>Mensagem</label>
+        <textarea name="mensagem" id="email-mensagem" required></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;">
+        Enviar
+      </button>
+    </form>
+
+  </div>
+</div>
+<script>
+function abrirEmail(id, nome) {
+    document.getElementById('email-id').value = id;
+    document.getElementById('email-nome').textContent = nome;
+
+    document.getElementById('modal-email').classList.add('ativo');
+}
+</script>
+<script>
+function abrirEmail(id, nome, email) {
+    document.getElementById('email-id').value = id;
+    document.getElementById('email-nome').textContent = nome;
+
+    // TEMPLATE PRONTO
+    document.getElementById('email-assunto').value = "Olá " + nome + " — Mensagem da SoluTech";
+
+    document.getElementById('email-mensagem').value =
+`Olá ${nome},
+
+Espero que esteja bem!
+
+Aqui é da SoluTech IA. Estamos entrando em contato para dar continuidade ao seu atendimento e entender melhor suas necessidades.
+
+Se precisar, pode responder este e-mail diretamente.
+
+Atenciosamente,
+Equipe SoluTech IA`;
+
+    document.getElementById('modal-email').classList.add('ativo');
+}
+</script>
 <?php include __DIR__ . '/includes_dash_layout_bottom.php'; ?>

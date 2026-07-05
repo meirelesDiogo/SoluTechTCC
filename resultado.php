@@ -136,7 +136,7 @@ $pontuacao = max(0, min(100, (int)$diag['pontuacao']));
       labels: ['Maturidade', 'Restante'],
       datasets: [{
         data: [pontuacao, 100 - pontuacao],
-        backgroundColor: ['#FFC107', 'rgba(255,255,255,.08)'],
+        backgroundColor: ['#2563EB', 'rgba(15,23,42,.08)'],
         borderWidth: 0,
       }]
     },
@@ -160,14 +160,14 @@ $pontuacao = max(0, min(100, (int)$diag['pontuacao']));
           <?= $diag['prioridade'] === 'Alta' ? 3 : ($diag['prioridade'] === 'Média' ? 2 : 1) ?>,
           <?= $diag['complexidade'] === 'Alta' ? 3 : ($diag['complexidade'] === 'Média' ? 2 : 1) ?>
         ],
-        backgroundColor: ['#FFC107', '#FF6B00', '#CFCFCF'],
+        backgroundColor: ['#2563EB', '#06B6D4', '#64748B'],
         borderRadius: 8,
       }]
     },
     options: {
       scales: {
-        x: { ticks: { color: '#CFCFCF' }, grid: { display: false } },
-        y: { beginAtZero: true, max: 3, ticks: { color: '#CFCFCF' }, grid: { color: 'rgba(255,255,255,.06)' } }
+        x: { ticks: { color: '#64748B' }, grid: { display: false } },
+        y: { beginAtZero: true, max: 3, ticks: { color: '#64748B' }, grid: { color: 'rgba(15,23,42,.06)' } }
       },
       plugins: { legend: { display: false } }
     }
