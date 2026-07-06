@@ -88,16 +88,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $observacoes
     ]);
 
-    EmailService::enviarOrcamento([
-      'nome' => $nome,
-      'email' => $email,
-      'empresa' => $empresa,
-      'cidade' => $cidade,
-      'telefone' => $telefone,
-      'urgencia' => $urgencia,
-      'orcamento' => $orcamentoDisp,
-      'descricao' => $descricao
-    ]);
+    try {
+      EmailService::enviarOrcamento([
+        'nome' => $nome,
+        'email' => $email,
+        'empresa' => $empresa,
+        'cidade' => $cidade,
+        'telefone' => $telefone,
+        'urgencia' => $urgencia,
+        'orcamento' => $orcamentoDisp,
+        'descricao' => $descricao
+      ]);
+    } catch (\Throwable $e) {
+      // Não deixa uma falha no envio de e-mail impedir o cadastro do orçamento.
+      error_log('Erro ao enviar e-mail de confirmação de orçamento: ' . $e->getMessage());
+    }
 
     // 🔥 IMPORTANTE: evita replay + limpa POST
     header("Location: orcamento.php?sucesso=1");

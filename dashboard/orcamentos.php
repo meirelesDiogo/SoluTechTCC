@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../includes/conexao.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../services/EmailService.php';
 protegerPagina();
 
 $paginaDash = 'orcamentos';
@@ -17,11 +18,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
 
     if ($acao === 'status' && $id && in_array($_POST['status'] ?? '', $statusValidos, true)) {
-        $pdo->prepare('UPDATE orcamentos SET status = ? WHERE id = ?')->execute([$_POST['status'], $id]);
+        $novoStatus = $_POST['status'];
+
+        $stmt = $pdo->prepare('SELECT nome, email, status FROM orcamentos WHERE id = ?');
+        $stmt->execute([$id]);
+        $orcamentoAtual = $stmt->fetch();
+
+        $pdo->prepare('UPDATE orcamentos SET status = ? WHERE id = ?')->execute([$novoStatus, $id]);
+
+        if ($orcamentoAtual && $orcamentoAtual['status'] !== $novoStatus && filter_var($orcamentoAtual['email'], FILTER_VALIDATE_EMAIL)) {
+            try {
+                EmailService::enviarMudancaStatus([
+                    'nome'            => $orcamentoAtual['nome'],
+                    'email'           => $orcamentoAtual['email'],
+                    'status_anterior' => $orcamentoAtual['status'],
+                    'status_novo'     => $novoStatus,
+                ]);
+            } catch (\Throwable $e) {
+                error_log('Erro ao enviar e-mail de mudança de status: ' . $e->getMessage());
+            }
+        }
+
+        header('Location: orcamentos.php');
+        exit;
     }
+
     if ($acao === 'excluir' && $id) {
         $pdo->prepare('DELETE FROM orcamentos WHERE id = ?')->execute([$id]);
+        header('Location: orcamentos.php');
+        exit;
     }
+
+    if ($acao === 'enviar_email' && $id) {
+        $assunto       = trim(str_replace(["\r", "\n"], ' ', $_POST['assunto'] ?? ''));
+        $mensagem      = trim($_POST['mensagem'] ?? '');
+        $mensagemExtra = trim($_POST['mensagem_extra'] ?? '');
+
+        $stmt = $pdo->prepare('SELECT nome, email FROM orcamentos WHERE id = ?');
+        $stmt->execute([$id]);
+        $orcamentoCliente = $stmt->fetch();
+
+        if ($assunto && $mensagem && $orcamentoCliente && filter_var($orcamentoCliente['email'], FILTER_VALIDATE_EMAIL)) {
+            try {
+                EmailService::enviarEmailPersonalizado(
+                    $orcamentoCliente['email'],
+                    $orcamentoCliente['nome'],
+                    $assunto,
+                    $mensagem,
+                    $mensagemExtra !== '' ? $mensagemExtra : null
+                );
+                header('Location: orcamentos.php?email_enviado=1');
+                exit;
+            } catch (\Throwable $e) {
+                error_log('Erro ao enviar e-mail de orçamento: ' . $e->getMessage());
+                header('Location: orcamentos.php?email_erro=1');
+                exit;
+            }
+        }
+
+        header('Location: orcamentos.php?email_erro=1');
+        exit;
+    }
+
     header('Location: orcamentos.php');
     exit;
 }
@@ -97,11 +155,12 @@ include __DIR__ . '/includes_dash_layout_top.php';
           <td><?= date('d/m/Y', strtotime($o['criado_em'])) ?></td>
           <td>
             <div class="acoes-tabela">
-              <a href="#" data-abrir-modal="#modal-orc-<?= $o['id'] ?>"><i class="fa-solid fa-eye"></i></a>
+              <a href="#" data-abrir-modal="#modal-orc-<?= $o['id'] ?>" title="Ver detalhes"><i class="fa-solid fa-eye"></i></a>
+              <a href="#" data-abrir-modal="#modal-email-orc-<?= $o['id'] ?>" title="Enviar e-mail"><i class="fa-solid fa-envelope"></i></a>
               <form method="POST" style="display:inline;" onsubmit="return confirmarExclusao(this);">
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $o['id'] ?>">
-                <button type="submit"><i class="fa-solid fa-trash"></i></button>
+                <button type="submit" title="Excluir"><i class="fa-solid fa-trash"></i></button>
               </form>
             </div>
           </td>
@@ -119,6 +178,50 @@ include __DIR__ . '/includes_dash_layout_top.php';
             <p style="color:var(--texto-secundario); font-size:14px;"><strong>Observações:</strong> <?= nl2br(htmlspecialchars($o['observacoes'])) ?></p>
           </div>
         </div>
+
+        <div class="modal-overlay" id="modal-email-orc-<?= $o['id'] ?>">
+          <div class="modal-box">
+            <span class="modal-close" data-fechar-modal>&times;</span>
+            <h3>Enviar e-mail para <?= htmlspecialchars($o['nome']) ?></h3>
+
+            <?php if (!filter_var($o['email'] ?? '', FILTER_VALIDATE_EMAIL)): ?>
+              <p style="color:#e74c3c; font-size:14px;">
+                Este cliente não possui um e-mail válido cadastrado.
+              </p>
+            <?php else: ?>
+              <form method="POST">
+                <input type="hidden" name="acao" value="enviar_email">
+                <input type="hidden" name="id" value="<?= $o['id'] ?>">
+
+                <div class="form-group full">
+                  <label>Assunto</label>
+                  <input type="text" name="assunto" required
+                         value="Sobre o seu orçamento — SoluTech IA">
+                </div>
+
+                <div class="form-group full">
+                  <label>Mensagem</label>
+                  <textarea name="mensagem" required><?= htmlspecialchars(
+"Olá, {$o['nome']}!
+
+Estamos entrando em contato sobre o orçamento solicitado (status atual: {$o['status']}).
+
+Nossa equipe está acompanhando de perto a sua solicitação e queremos alinhar os próximos passos com você."
+                  ) ?></textarea>
+                </div>
+
+                <div class="form-group full">
+                  <label>Mensagem adicional (opcional)</label>
+                  <textarea name="mensagem_extra" placeholder="Escreva algo a mais, se quiser complementar..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                  <i class="fa-solid fa-paper-plane"></i> Enviar e-mail
+                </button>
+              </form>
+            <?php endif; ?>
+          </div>
+        </div>
         <?php endforeach; ?>
         <?php if (!$orcamentos): ?><tr><td colspan="7">Nenhum orçamento encontrado.</td></tr><?php endif; ?>
       </tbody>
@@ -127,3 +230,13 @@ include __DIR__ . '/includes_dash_layout_top.php';
 </div>
 
 <?php include __DIR__ . '/includes_dash_layout_bottom.php'; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  <?php if (isset($_GET['email_enviado'])): ?>
+    Swal.fire({ icon: 'success', title: 'E-mail enviado com sucesso!', timer: 2500, showConfirmButton: false });
+  <?php elseif (isset($_GET['email_erro'])): ?>
+    Swal.fire({ icon: 'error', title: 'Não foi possível enviar o e-mail', text: 'Verifique os dados e tente novamente.' });
+  <?php endif; ?>
+});
+</script>
